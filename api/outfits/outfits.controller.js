@@ -1,7 +1,95 @@
 const outfits = require("./outfits.model")
 var CONFIG = require('../../config/config');
+const cloudinary = require("../../config/cloudinary");
+const multer = require("multer");
 
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50 MB
+    }
+});
 
+exports.uploadMiddleware = upload.single("media");
+
+exports.uploadImg = async function (req, res) {
+    try {
+        var userId = req.body.userId;
+        var wardrobeId = req.body.wardrobeId;
+
+        // 1. userId required validation
+        if (!userId) {
+            return res.send({
+                status: false,
+                code: 400,
+                message: "userId is required"
+            });
+        }
+
+        if (!wardrobeId) {
+            return res.send({
+                status: false,
+                code: 400,
+                message: "wardrobeId is required"
+            });
+        }
+
+         if (!req.file) {
+            return res.send({
+                status: false,
+                code: 400,
+                message: "Please select an image or video"
+            });
+        }
+
+        const isImage = req.file.mimetype.startsWith("image/");
+
+        if (!isImage) {
+            return res.send({
+                status: false,
+                code: 400,
+                message: "Only images are allowed"
+            });
+        }
+
+        const result = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "online-wardrobe/media/"+userId+"/"+wardrobeId,
+                    resource_type: "image"
+                },
+                (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                }
+            );
+
+            stream.end(req.file.buffer);
+        });
+
+        return res.send({
+            status: true,
+            code: 200,
+            message: "Media uploaded successfully",
+            data: {
+                url: result.secure_url,
+                publicId: result.public_id,
+                resourceType: result.resource_type,
+                format: result.format,
+                size: result.bytes
+            }
+        });
+
+    } catch (error) {
+        console.error("Upload error:", error);
+
+        return res.send({
+            status: false,
+            code: 500,
+            message: "Media upload failed"
+        });
+    }
+};
 
 exports.add = async function (req, res) {
     try {
