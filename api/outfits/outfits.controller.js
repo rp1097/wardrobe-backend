@@ -1,7 +1,10 @@
 const outfits = require("./outfits.model")
+const users = require("../users/users.model")
+const wardrobes = require("../wardrobes/wardrobes.model")
 var CONFIG = require('../../config/config');
 const cloudinary = require("../../config/cloudinary");
 const multer = require("multer");
+const mongoose = require("mongoose");
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -34,7 +37,7 @@ exports.uploadImg = async function (req, res) {
             });
         }
 
-         if (!req.file) {
+        if (!req.file) {
             return res.send({
                 status: false,
                 code: 400,
@@ -55,7 +58,7 @@ exports.uploadImg = async function (req, res) {
         const result = await new Promise((resolve, reject) => {
             const stream = cloudinary.uploader.upload_stream(
                 {
-                    folder: "online-wardrobe/media/"+userId+"/"+wardrobeId,
+                    folder: "online-wardrobe/media/" + userId + "/" + wardrobeId,
                     resource_type: "image"
                 },
                 (error, result) => {
@@ -149,6 +152,89 @@ exports.delete = async function (req, res) {
         return res.send({ satus: false, code: 400, message: "Oops somthing went wrong " + e })
     }
 }
+
+
+exports.getUserOutfits = async function (req, res) {
+    try {
+        var body = req.body;
+        var Page_No = body.Page_No || 1;// Page Number
+        var Items_Per_Page = body.Size || 10; // list of records per page
+        // Pagination Limit Code Start
+        var Offset = (Page_No - 1) * Items_Per_Page;
+
+        if (!body.userId) {
+            return res.status(400).send({
+                status: false,
+                code: 400,
+                message: "userId is required!"
+            });
+        }
+
+        var wardrobe = await wardrobes.findOne({
+            userId: body.userId
+        });
+
+        if (!wardrobe) {
+            return res.status(404).send({
+                status: false,
+                code: 404,
+                message: "Wardrobe not found!"
+            });
+        }
+
+        if (req.body.searchText) {
+            var where = {
+                userId: new mongoose.Types.ObjectId(body.userId),
+                wardrobeId: wardrobe._id,
+                $or: [
+                    { name: { $regex: req.body.searchText, $options: "i" } },
+                    { category: { $regex: req.body.searchText, $options: "i" } },
+                    { color: { $regex: req.body.searchText, $options: "i" } }
+                ]
+            };
+        } else {
+            var where = {
+                userId: new mongoose.Types.ObjectId(body.userId),
+                wardrobeId: wardrobe._id
+            }
+        }
+
+        var Count = await outfits.countDocuments(where)
+        var data = await outfits.find(where)
+            .sort({ _id: -1 })
+            .skip(Offset)
+            .limit(Items_Per_Page)
+
+        if (data.length > 0) {
+            return res.status(200).send({
+                status: true,
+                code: 200,
+                Count, Page_No, Size: Items_Per_Page,
+                message: "Data fetched successfully!",
+                data: data
+            });
+        }
+
+        return res.status(200).send({
+            status: true,
+            code: 200,
+            Page_No, Size: Items_Per_Page,
+            message: "No outfits found!",
+            data: []
+        });
+
+    } catch (e) {
+        console.error("getUserOutfits error:", e);
+
+        return res.status(500).send({
+            status: false,
+            code: 500,
+            message: "Something went wrong!",
+            error: e.message
+        });
+    }
+};
+
 
 exports.list = async function (req, res) {
     try {
