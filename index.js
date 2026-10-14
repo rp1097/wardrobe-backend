@@ -9,6 +9,7 @@ const connectDB = require('./database/mongodb');
 
 const app = express();
 
+
 app.use(cors());
 
 app.use(bodyParser.json({ limit: '200mb' }));
@@ -29,6 +30,10 @@ app.use((req, res, next) => {
     );
     next();
 });
+
+app.get('/', (req, res)=>{
+    res.send('<h2>Working fine..<h2/>')
+})
 
 require('./routes')(app);
 
